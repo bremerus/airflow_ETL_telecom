@@ -1,0 +1,13 @@
+*.csv
+*.xlsx
+
+logs/
+plugins/
+airflow.db
+
+__pycache__/
+*.pyc
+.venv/
+
+.env
+.DS_Store
