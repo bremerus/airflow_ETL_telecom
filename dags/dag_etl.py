@@ -104,7 +104,6 @@ with DAG(
 
         df['churn'] = df['churn'].str.strip().replace({'Yes' : 1, 'No' : 0}).astype(int)    # convert all yes to 1 and no to 0
 
-
         return df
 
     @task
