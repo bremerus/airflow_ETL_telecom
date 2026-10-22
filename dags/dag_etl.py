@@ -14,23 +14,23 @@ default_args = {
 }
 
 with DAG(
-    dag_id='dag_etl_v09',
+    dag_id='dag_etl_v13',
     default_args=default_args,
     start_date= datetime(2020, 1, 1),
-    end_date= datetime(2020, 3, 31),
+    end_date= datetime(2024, 12, 31),
     schedule_interval='@monthly'
 ) as dag:
     @task
     def extract_data(**context):
         print('Connection with minio to get the data')
-        s3_hook = S3Hook(aws_conn_id = 'minio_conn')
+        s3_hook = S3Hook(aws_conn_id = 'minio_conn') #we use the hooks to connect to the minio 
 
-        file_content = s3_hook.read_key(
+        file_content = s3_hook.read_key(            # we want to read as a string the whole data file  by specifying bucket and file name
             key = 'telecom_churn.csv',
             bucket_name = 'bronze-raw-data'
         )
 
-        df = pd.read_csv(io.StringIO(file_content))
+        df = pd.read_csv(io.StringIO(file_content))     #the read_csv is a pandas function turning a file into a dataframe, StringIO in the other hand tricks the pandas into thinking that file_content is a normal file
 
         print(f'There was {len(df)} lines read.')
 
@@ -51,6 +51,8 @@ with DAG(
     @task
     def clean_data(df):
         df['customer_id'] = df['customer_id'].astype(str).str.strip().astype(int)           #transform customer_ids to ints
+
+        df = df.drop_duplicates(subset=['customer_id'], keep='first')           #droping duplicate ids
 
         df['gender'] = df['gender'].str.strip().str.lower().replace({'f' : 'female', 'm':'male'})       #Standartise the genders to only 'male' and 'female'
 
@@ -129,11 +131,20 @@ with DAG(
         return file_name
     
     @task
-    def load_data_ssms(df):
+    def load_data_ssms(df, **context):
         print('connection with sql server')
 
+        execution_date = context['logical_date']
+        target_year = execution_date.year
+        target_month = f'{execution_date.month:02d}'
+
         mssql_hook = MsSqlHook(mssql_conn_id = 'my_mssql_connection')
-        engine = mssql_hook.get_sqlalchemy_engine()
+        engine = mssql_hook.get_sqlalchemy_engine() # interpeter for mssql otherwise we cannot insert the data
+
+        delette_query = f"""
+                delete from silver.telecom_churn where year(signup_date) = {target_year} and month(signup_date) = {target_month}
+        """
+        mssql_hook.run(delette_query)
 
         print('Uploading the data')
 
