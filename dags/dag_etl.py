@@ -14,7 +14,7 @@ default_args = {
 }
 
 with DAG(
-    dag_id='dag_etl_v13',
+    dag_id='dag_etl_v15',
     default_args=default_args,
     start_date= datetime(2020, 1, 1),
     end_date= datetime(2024, 12, 31),
@@ -34,6 +34,10 @@ with DAG(
 
         print(f'There was {len(df)} lines read.')
 
+        # this data cleanseing is done here because we want to filter the data by the execution date and we want to make sure that the customer_ids are unique and in the right format
+        df['customer_id'] = df['customer_id'].astype(str).str.strip().astype(int)           #transform customer_ids to ints
+        df = df.drop_duplicates(subset=['customer_id'], keep='first')           #droping duplicate ids
+
         execution_date = context['logical_date']
         target_year = execution_date.year
         target_month = execution_date.month
@@ -50,10 +54,7 @@ with DAG(
 
     @task
     def clean_data(df):
-        df['customer_id'] = df['customer_id'].astype(str).str.strip().astype(int)           #transform customer_ids to ints
-
-        df = df.drop_duplicates(subset=['customer_id'], keep='first')           #droping duplicate ids
-
+        
         df['gender'] = df['gender'].str.strip().str.lower().replace({'f' : 'female', 'm':'male'})       #Standartise the genders to only 'male' and 'female'
 
         df['senior_citizen'] = df['senior_citizen'].str.strip().str.lower().replace({'yes' : 1, 'no' : 0}).astype(int)      #standartize senior_citizen status to only 1 for yes and 0 for no
